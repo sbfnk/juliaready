@@ -72,6 +72,14 @@ my_function <- function(...) {
 - It does not auto-initialise on `.onLoad`. Eager init in `.onLoad` interacts badly with other compiled backends (notably Stan) and can crash R during package attach. Use `ensure_julia()` instead.
 - It does not provide a Julia REPL or evaluation API. That is `JuliaCall`'s job.
 
+## A rule worth knowing: don't `Pkg.activate(path)` from in-process
+
+The supported pattern is: install Julia packages **in a subprocess** (which `julia_ready()` does for you), into the **default Julia depot**, then `using` them from the in-process JuliaCall session. The rule:
+
+> Do not call `Pkg.activate("/some/path")` followed by `Pkg.instantiate()` from inside an in-process JuliaCall session.
+
+That sequence — switching the active project to a path-based environment from inside the embedded Julia — has been observed to segfault R. Subprocess installs into the default depot avoid it entirely, which is why `julia_ready()` is structured the way it is. If you find yourself reaching for `Pkg.activate(path)` to use a project-local environment, do it in a subprocess (or use [JuliaConnectoR](https://github.com/stefan-m-lenz/JuliaConnectoR) instead, which keeps Julia in a separate process).
+
 ## Status
 
 Experimental. Extracted from working code in [ringbpjl](https://github.com/sbfnk/ringbp.jl); planned migrations of [EpiAwareR](https://github.com/sbfnk/EpiAwareR) and [forecastbaselines](https://github.com/epiforecasts/forecastbaselines) will exercise the API on real consumers.
