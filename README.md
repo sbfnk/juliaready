@@ -63,7 +63,7 @@ my_function <- function(x) {
 ## API
 
 - **`julia_bin()`** — resolve the Julia binary, honouring `JULIACONNECTOR_JULIABIN`, `JULIA_BINDIR`, then `PATH`.
-- **`julia_ready(packages, github, state_env, install, verbose)`** — install required Julia packages in a subprocess, then start the JuliaConnectoR server and `using` them. Idempotent.
+- **`julia_ready(packages, github, state_env, install, project, verbose)`** — install required Julia packages in a subprocess, then start the JuliaConnectoR server and `using` them. With `project = "<path>"`, activates and instantiates a pinned Julia project (e.g. `inst/julia/Project.toml`) instead of installing into the user's default depot — recommended for shipping reproducible installs. Idempotent.
 - **`julia_load_bridge(package, files, verbose)`** — load `.jl` files from `inst/julia/<package>` of a calling package via `juliaEval`.
 - **`ensure_julia(state_env, init_fn)`** — lazy-init guard. Call from the top of any function that will use Julia.
 - **`eval_julia(code)`** / **`call_julia(name, ...)`** / **`import_julia(module)`** — backend-agnostic wrappers around `juliaEval` / `juliaCall` / `juliaImport`.
