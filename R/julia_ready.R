@@ -53,6 +53,7 @@ julia_ready <- function(packages,
          call. = FALSE)
   }
 
+  installed_anything <- FALSE
   for (pkg in packages) {
     code <- sprintf("using %s", pkg)
     ok <- julia_subprocess(code, check = FALSE, bin = bin)
@@ -64,7 +65,16 @@ julia_ready <- function(packages,
       if (verbose) message("Installing Julia package: ", pkg, " ...")
       install_code <- .install_code(pkg, github)
       julia_subprocess(install_code, bin = bin)
+      installed_anything <- TRUE
     }
+  }
+  # After a fresh install, large dependency trees can leave the depot in a
+  # state where JuliaCall::julia_setup() segfaults. A second pass through
+  # Pkg.precompile() in subprocess stabilises the depot so the in-process
+  # JuliaCall load below is safe.
+  if (installed_anything) {
+    if (verbose) message("Stabilising Julia depot (Pkg.precompile)...")
+    julia_subprocess("import Pkg; Pkg.precompile()", bin = bin)
   }
 
   suppressWarnings(JuliaCall::julia_setup())
@@ -94,9 +104,9 @@ julia_ready <- function(packages,
       subdir <- NULL
     }
     pkgspec <- if (is.null(subdir)) {
-      sprintf('PackageSpec(url="%s")', url)
+      sprintf('Pkg.PackageSpec(url="%s")', url)
     } else {
-      sprintf('PackageSpec(url="%s", subdir="%s")', url, subdir)
+      sprintf('Pkg.PackageSpec(url="%s", subdir="%s")', url, subdir)
     }
     sprintf('import Pkg; Pkg.add(%s); using %s', pkgspec, pkg)
   } else {

@@ -10,7 +10,7 @@ test_that("github shorthand owner/repo is expanded to full URL", {
     c(EpiBranch = "epiforecasts/EpiBranch.jl")
   )
   expect_match(code, "https://github\\.com/epiforecasts/EpiBranch\\.jl")
-  expect_match(code, "PackageSpec\\(url=")
+  expect_match(code, "Pkg\\.PackageSpec\\(url=")
   expect_match(code, "using EpiBranch")
 })
 

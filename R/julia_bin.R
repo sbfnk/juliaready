@@ -46,6 +46,25 @@ julia_subprocess <- function(code, check = TRUE, bin = julia_bin()) {
          "https://github.com/JuliaLang/juliaup) or set JULIA_HOME.",
          call. = FALSE)
   }
+  # R sets LD_LIBRARY_PATH (or DYLD_LIBRARY_PATH on macOS) to point at its
+  # own libR / libstdc++ / BLAS, and these inherit into subprocesses. Julia
+  # picks them up and segfaults during heavy work like Pkg.precompile().
+  # Strip these for the subprocess call and restore afterwards.
+  poison_vars <- c("LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH", "DYLD_FALLBACK_LIBRARY_PATH")
+  saved <- vapply(poison_vars, function(v) Sys.getenv(v, unset = NA),
+                  character(1))
+  on.exit({
+    for (v in poison_vars) {
+      old <- saved[[v]]
+      if (is.na(old)) {
+        Sys.unsetenv(v)
+      } else {
+        do.call(Sys.setenv, setNames(list(old), v))
+      }
+    }
+  }, add = TRUE)
+  for (v in poison_vars) Sys.unsetenv(v)
+
   res <- suppressWarnings(system2(
     bin,
     args = c("--startup-file=no", "-e", shQuote(code)),
