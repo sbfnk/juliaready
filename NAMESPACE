@@ -1,4 +1,6 @@
+export(assign_julia)
 export(call_julia)
+export(command_julia)
 export(ensure_julia)
 export(eval_julia)
 export(import_julia)

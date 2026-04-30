@@ -42,3 +42,50 @@ call_julia <- function(name, ...) {
 import_julia <- function(module) {
   JuliaConnectoR::juliaImport(module)
 }
+
+#' Assign an R value to a name in Julia's `Main` module
+#'
+#' Equivalent in spirit to `JuliaCall::julia_assign(name, value)`. Useful
+#' when porting code that previously used the assign-then-eval pattern.
+#' Idiomatic JuliaConnectoR code prefers passing values directly via
+#' [call_julia()]; this is provided for migration convenience.
+#'
+#' Internally defines a small Julia helper `__juliaready_assign__!` on
+#' first use and calls it with the (Symbol, value) pair.
+#'
+#' @param name Variable name to bind in `Main`.
+#' @param value R value to convert and assign.
+#' @return Invisibly `NULL`.
+#' @export
+.juliaready_state <- new.env(parent = emptyenv())
+
+assign_julia <- function(name, value) {
+  if (!grepl("^[A-Za-z_][A-Za-z0-9_]*$", name)) {
+    stop("Invalid Julia identifier: ", name, call. = FALSE)
+  }
+  if (!isTRUE(.juliaready_state$assign_helper_loaded)) {
+    JuliaConnectoR::juliaEval(
+      "function __juliaready_assign__!(name::Symbol, value)
+         Core.eval(Main, Expr(:(=), name, value))
+         nothing
+       end"
+    )
+    .juliaready_state$assign_helper_loaded <- TRUE
+  }
+  sym <- JuliaConnectoR::juliaCall("Symbol", name)
+  invisible(JuliaConnectoR::juliaCall("__juliaready_assign__!", sym, value))
+}
+
+#' Run a Julia command for its side effects
+#'
+#' Equivalent in spirit to `JuliaCall::julia_command(code)`: evaluate
+#' Julia code without using the return value. Provided for migration
+#' convenience; functionally identical to [eval_julia()] called for
+#' its side effects.
+#'
+#' @param code A string of Julia code.
+#' @return Invisibly the result of `juliaEval`.
+#' @export
+command_julia <- function(code) {
+  invisible(JuliaConnectoR::juliaEval(code))
+}
