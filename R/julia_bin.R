@@ -1,23 +1,22 @@
-#' Find the Julia binary that JuliaCall would use
+#' Find the Julia binary
 #'
-#' Resolves the Julia binary without starting JuliaCall, so it can be
-#' used to run subprocess work (precompile, install) that should target
-#' the same Julia depot JuliaCall will subsequently use.
+#' Resolves the Julia binary path, used by [julia_subprocess()] to run
+#' subprocess work (installing packages into the default depot) before
+#' starting the JuliaConnectoR server.
 #'
 #' Detection order:
-#'   1. `JuliaCall:::julia_locate()` — JuliaCall's own logic, which honours
-#'      `JULIA_HOME` and discovery via `juliaup` / PATH.
-#'   2. `Sys.which("julia")` — fallback to PATH.
-#'
-#' This matters on systems with multiple Julia installations (e.g. a
-#' homebrew Julia in PATH alongside a juliaup-managed one). Using
-#' `Sys.which()` alone may return the wrong one.
+#'   1. `JULIACONNECTOR_JULIABIN` env var (JuliaConnectoR's preferred mechanism).
+#'   2. `JULIA_BINDIR` env var (Julia's own; `joinpath(JULIA_BINDIR, "julia")`).
+#'   3. `Sys.which("julia")` — fallback to PATH.
 #'
 #' @return Absolute path to the Julia executable, or `""` if not found.
 #' @export
 julia_bin <- function() {
-  bindir <- tryCatch(JuliaCall:::julia_locate(), error = function(e) NULL)
-  if (!is.null(bindir) && nzchar(bindir)) {
+  override <- Sys.getenv("JULIACONNECTOR_JULIABIN", unset = "")
+  if (nzchar(override) && file.exists(override)) return(override)
+
+  bindir <- Sys.getenv("JULIA_BINDIR", unset = "")
+  if (nzchar(bindir)) {
     exe <- if (.Platform$OS.type == "windows") "julia.exe" else "julia"
     bin <- file.path(bindir, exe)
     if (file.exists(bin)) return(bin)
@@ -27,11 +26,15 @@ julia_bin <- function() {
 
 #' Run a Julia command in a subprocess
 #'
-#' Uses `julia --startup-file=no -e <code>` against the Julia binary
-#' returned by [julia_bin()]. Returning to a subprocess (rather than
-#' calling JuliaCall::julia_eval()) is what lets us safely trigger
-#' package installation and precompilation without risking the
-#' JuliaCall + stale-cache segfault.
+#' Launches a fresh `julia` process for one-shot work such as `Pkg.add`
+#' or `Pkg.precompile`. This is *not* the JuliaConnectoR server — it's a
+#' transient process for installation work that runs before the server
+#' is started.
+#'
+#' Strips library-path env vars that R may set (`LD_LIBRARY_PATH`,
+#' `DYLD_LIBRARY_PATH`, `DYLD_FALLBACK_LIBRARY_PATH`), because those
+#' point at R's own libraries and can cause Julia to segfault when
+#' loaded into the subprocess.
 #'
 #' @param code Julia code to evaluate.
 #' @param check If `TRUE`, error on non-zero exit. If `FALSE`, return
@@ -43,14 +46,11 @@ julia_bin <- function() {
 julia_subprocess <- function(code, check = TRUE, bin = julia_bin()) {
   if (!nzchar(bin) || !file.exists(bin)) {
     stop("Julia not found. Install Julia (juliaup recommended: ",
-         "https://github.com/JuliaLang/juliaup) or set JULIA_HOME.",
+         "https://github.com/JuliaLang/juliaup) or set JULIA_BINDIR.",
          call. = FALSE)
   }
-  # R sets LD_LIBRARY_PATH (or DYLD_LIBRARY_PATH on macOS) to point at its
-  # own libR / libstdc++ / BLAS, and these inherit into subprocesses. Julia
-  # picks them up and segfaults during heavy work like Pkg.precompile().
-  # Strip these for the subprocess call and restore afterwards.
-  poison_vars <- c("LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH", "DYLD_FALLBACK_LIBRARY_PATH")
+  poison_vars <- c("LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH",
+                   "DYLD_FALLBACK_LIBRARY_PATH")
   saved <- vapply(poison_vars, function(v) Sys.getenv(v, unset = NA),
                   character(1))
   on.exit({

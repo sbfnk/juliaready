@@ -1,18 +1,17 @@
 #' Ensure Julia and required Julia packages are ready
 #'
 #' Performs the steps needed to make Julia and a set of Julia packages
-#' loadable from R via JuliaCall. Specifically:
+#' callable from R via JuliaConnectoR:
 #'
 #' 1. Locates the Julia binary (see [julia_bin()]).
 #' 2. For each required package, checks it loads in a Julia subprocess.
 #'    If a package is missing and `install = TRUE`, installs it (from a
 #'    GitHub URL if listed in `github`, otherwise from the General
-#'    registry). Any precompilation triggered by `using <pkg>` happens
-#'    in the subprocess, avoiding the segfault that occurs when
-#'    JuliaCall's embedded Julia tries to precompile a stale or missing
-#'    cache.
-#' 3. Initialises JuliaCall (`JuliaCall::julia_setup()`).
-#' 4. Loads each package via JuliaCall (now safe because caches are warm).
+#'    registry). Subprocess work avoids any interaction with the running
+#'    JuliaConnectoR server.
+#' 3. Starts (or attaches to) the JuliaConnectoR server.
+#' 4. Loads each package via `juliaEval("using <pkg>")`, so dotted
+#'    constructor names like `EpiBranch.NegBin` resolve correctly.
 #'
 #' Idempotent: if `state_env$ready` is already `TRUE`, returns immediately.
 #'
@@ -20,8 +19,7 @@
 #'   loaded (e.g. `c("EpiBranch", "Distributions")`).
 #' @param github Named character vector of GitHub URLs for packages not in
 #'   the General registry. Names must match entries in `packages`. Values
-#'   may be a full URL or a `"owner/repo"` shorthand. Optional `subdir`
-#'   can be supplied as `"owner/repo:subdir"`.
+#'   may be a full URL, an `"owner/repo"` shorthand, or `"owner/repo:subdir"`.
 #' @param state_env An environment used to track initialisation state. The
 #'   caller (typically a wrapping R package) supplies its own environment
 #'   so multiple consuming packages do not interfere with each other.
@@ -31,7 +29,6 @@
 #' @export
 #' @examples
 #' \dontrun{
-#' # In a consuming package's setup function:
 #' .my_pkg_env <- new.env(parent = emptyenv())
 #' julia_ready(
 #'   packages = c("EpiBranch", "Distributions", "Random"),
@@ -49,7 +46,7 @@ julia_ready <- function(packages,
   bin <- julia_bin()
   if (!nzchar(bin) || !file.exists(bin)) {
     stop("Julia not found. Install Julia (juliaup recommended: ",
-         "https://github.com/JuliaLang/juliaup) or set JULIA_HOME.",
+         "https://github.com/JuliaLang/juliaup) or set JULIA_BINDIR.",
          call. = FALSE)
   }
 
@@ -68,18 +65,20 @@ julia_ready <- function(packages,
       installed_anything <- TRUE
     }
   }
-  # After a fresh install, large dependency trees can leave the depot in a
-  # state where JuliaCall::julia_setup() segfaults. A second pass through
-  # Pkg.precompile() in subprocess stabilises the depot so the in-process
-  # JuliaCall load below is safe.
+
+  # After fresh installs of large dependency trees, Julia's depot can be
+  # in a state where the next `using` does heavy precompile work. Run a
+  # subprocess `Pkg.precompile()` once so the JuliaConnectoR server
+  # doesn't spend its first call doing it.
   if (installed_anything) {
-    if (verbose) message("Stabilising Julia depot (Pkg.precompile)...")
+    if (verbose) message("Precompiling Julia depot...")
     julia_subprocess("import Pkg; Pkg.precompile()", bin = bin)
   }
 
-  suppressWarnings(JuliaCall::julia_setup())
+  # Tell JuliaConnectoR which Julia binary to use, then load packages.
+  Sys.setenv(JULIACONNECTOR_JULIABIN = bin)
   for (pkg in packages) {
-    JuliaCall::julia_eval(sprintf("using %s", pkg))
+    JuliaConnectoR::juliaEval(sprintf("using %s", pkg))
   }
 
   state_env$ready <- TRUE
@@ -91,7 +90,6 @@ julia_ready <- function(packages,
 .install_code <- function(pkg, github) {
   if (pkg %in% names(github)) {
     spec <- github[[pkg]]
-    # Accept "owner/repo", "owner/repo:subdir", or full URL
     if (startsWith(spec, "http://") || startsWith(spec, "https://")) {
       url <- spec
       subdir <- NULL
