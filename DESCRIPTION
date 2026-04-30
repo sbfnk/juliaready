@@ -1,0 +1,26 @@
+Package: juliaready
+Title: Robust Julia Setup for R Packages
+Version: 0.1.0
+Authors@R:
+    person("Sebastian", "Funk", , "sebastian.funk@lshtm.ac.uk",
+           role = c("aut", "cre"),
+           comment = c(ORCID = "0000-0002-2842-3406"))
+Description: Helper utilities for R packages that wrap a Julia simulation
+    engine via JuliaCall. Provides a small, opinionated API for finding
+    the right Julia binary, installing and precompiling Julia packages
+    via subprocess (avoiding known JuliaCall segfaults on stale caches),
+    loading '.jl' bridge files in a world-age-safe way, and managing
+    lazy initialisation. Captures patterns refined across several
+    R-with-Julia-backend packages so the next one does not have to
+    rediscover them.
+License: MIT + file LICENSE
+URL: https://github.com/sbfnk/juliaready
+BugReports: https://github.com/sbfnk/juliaready/issues
+Imports:
+    JuliaCall
+Suggests:
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
