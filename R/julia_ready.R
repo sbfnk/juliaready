@@ -63,7 +63,7 @@ julia_ready <- function(packages,
     # Project-based setup: instantiate the pinned environment, then tell
     # JuliaConnectoR to start with that project active.
     project <- normalizePath(project, mustWork = TRUE)
-    proj_jl <- gsub("\\\\", "/", project, fixed = TRUE)
+    proj_jl <- gsub("\\", "/", project, fixed = TRUE)
     if (!file.exists(file.path(project, "Project.toml"))) {
       stop("No Project.toml found in ", project, call. = FALSE)
     }
