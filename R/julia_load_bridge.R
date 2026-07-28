@@ -22,6 +22,10 @@ julia_load_bridge <- function(package, files, verbose = FALSE) {
   loaded <- character()
   for (f in files) {
     path <- system.file("julia", f, package = package)
+    if (!nzchar(path)) {
+      # Development package loaded via pkgload: files still live under inst/
+      path <- system.file("inst", "julia", f, package = package)
+    }
     if (!nzchar(path) || !file.exists(path)) {
       stop("Bridge file not found: inst/julia/", f,
            " in package '", package, "'", call. = FALSE)
