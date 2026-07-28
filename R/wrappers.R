@@ -76,6 +76,21 @@ assign_julia <- function(name, value) {
   invisible(JuliaConnectoR::juliaCall("__juliaready_assign__!", sym, value))
 }
 
+#' Fully translate a Julia value into R
+#'
+#' [eval_julia()] and [call_julia()] return composite Julia values
+#' (structs, Tuples, NamedTuples, Dicts) as proxy objects that reference
+#' the value inside the Julia session. This function translates such a
+#' proxy into a plain R object, e.g. a NamedTuple into a named list.
+#' Values that are already plain R objects pass through unchanged.
+#'
+#' @param x A Julia proxy object (or an already-translated R value).
+#' @return The value fully translated into R data structures.
+#' @export
+get_julia <- function(x) {
+  JuliaConnectoR::juliaGet(x)
+}
+
 #' Run a Julia command for its side effects
 #'
 #' Equivalent in spirit to `JuliaCall::julia_command(code)`: evaluate
